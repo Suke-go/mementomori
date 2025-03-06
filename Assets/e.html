@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抽象化された枯山水 - Abstracted Zen Garden</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: sans-serif;
+            color: #f1f1f1;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            position: absolute;
+            z-index: 1;
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 10;
+            max-width: 280px;
+            font-size: 14px;
+        }
+        .controls h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-weight: 300;
+            font-size: 16px;
+            letter-spacing: 1px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .slider-container label {
+            flex: 1;
+            margin-right: 10px;
+        }
+        .slider-container input {
+            flex: 1;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #555;
+            border-radius: 2px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            background: #f1f1f1;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        button {
+            background: #333;
+            color: #f1f1f1;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 8px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #444;
+        }
+        .insight {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 10;
+            max-width: 400px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .insight h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    
+    <div class="controls">
+        <h3>枯山水のパラメータ</h3>
+        
+        <div class="control-group">
+            <div class="slider-container">
+                <label for="harmony">調和（和）</label>
+                <input type="range" id="harmony" min="0" max="1" step="0.01" value="0.5">
+            </div>
+            
+            <div class="slider-container">
+                <label for="emptiness">空（くう）</label>
+                <input type="range" id="emptiness" min="0" max="1" step="0.01" value="0.7">
+            </div>
+            
+            <div class="slider-container">
+                <label for="asymmetry">非対称（不均衡）</label>
+                <input type="range" id="asymmetry" min="0" max="1" step="0.01" value="0.6">
+            </div>
+            
+            <div class="slider-container">
+                <label for="simplicity">簡素（素朴）</label>
+                <input type="range" id="simplicity" min="0" max="1" step="0.01" value="0.5">
+            </div>
+            
+            <div class="slider-container">
+                <label for="transience">無常（はかなさ）</label>
+                <input type="range" id="transience" min="0" max="1" step="0.01" value="0.3">
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button id="reset">リセット</button>
+            <button id="randomize">ランダム</button>
+            <button id="toggle-insight">洞察を表示</button>
+        </div>
+    </div>
+    
+    <div class="insight hidden">
+        <h3>枯山水の洞察</h3>
+        <p>枯山水は単なる物理的な庭ではなく、心の状態を反映するものです。砂紋は思考の波を、岩は不動の精神を表します。</p>
+        <p>空間の使い方は「間（ま）」の概念を体現し、存在するものと存在しないものの間の緊張関係を示しています。</p>
+        <p>この抽象的な表現では、物理的な形ではなく、枯山水が呼び起こす精神状態と瞑想的な意識を捉えようとしています。</p>
+    </div>
+
+    <script>
+(function() {
+    // Canvas setup
+    const canvas = document.getElementById('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    
+    if (!gl) {
+        alert('WebGLが利用できません。別のブラウザをお試しください。');
+        return;
+    }
+    
+    // Resize canvas to window
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    // UI Controls setup
+    const controls = {
+        harmony: document.getElementById('harmony'),
+        emptiness: document.getElementById('emptiness'),
+        asymmetry: document.getElementById('asymmetry'),
+        simplicity: document.getElementById('simplicity'),
+        transience: document.getElementById('transience')
+    };
+    
+    const buttons = {
+        reset: document.getElementById('reset'),
+        randomize: document.getElementById('randomize'),
+        toggleInsight: document.getElementById('toggle-insight')
+    };
+    
+    const insightPanel = document.querySelector('.insight');
+    
+    // Reset controls to default values
+    buttons.reset.addEventListener('click', () => {
+        controls.harmony.value = 0.5;
+        controls.emptiness.value = 0.7;
+        controls.asymmetry.value = 0.6;
+        controls.simplicity.value = 0.5;
+        controls.transience.value = 0.3;
+    });
+    
+    // Randomize control values
+    buttons.randomize.addEventListener('click', () => {
+        controls.harmony.value = Math.random();
+        controls.emptiness.value = Math.random();
+        controls.asymmetry.value = Math.random();
+        controls.simplicity.value = Math.random();
+        controls.transience.value = Math.random();
+    });
+    
+    // Toggle insight panel
+    buttons.toggleInsight.addEventListener('click', () => {
+        insightPanel.classList.toggle('hidden');
+        buttons.toggleInsight.textContent = insightPanel.classList.contains('hidden') 
+            ? '洞察を表示' 
+            : '洞察を隠す';
+    });
+    
+    // Shader sources
+    const vertexShaderSource = `
+        attribute vec2 a_position;
+        varying vec2 v_uv;
+        
+        void main() {
+            gl_Position = vec4(a_position, 0.0, 1.0);
+            v_uv = a_position * 0.5 + 0.5;
+        }
+    `;
+    
+    const fragmentShaderSource = `
+        precision highp float;
+        
+        uniform float u_time;
+        uniform vec2 u_resolution;
+        uniform vec2 u_mouse;
+        uniform float u_harmony;
+        uniform float u_emptiness;
+        uniform float u_asymmetry;
+        uniform float u_simplicity;
+        uniform float u_transience;
+        
+        varying vec2 v_uv;
+        
+        const float PI = 3.14159265359;
+        
+        // Noise functions adapted from Inigo Quilez and others
+        // https://www.shadertoy.com/view/XdXGW8
+        vec2 hash(vec2 p) {
+            p = vec2(dot(p, vec2(127.1, 311.7)),
+                      dot(p, vec2(269.5, 183.3)));
+            return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+        }
+        
+        float noise(vec2 p) {
+            const float K1 = 0.366025404; // (sqrt(3)-1)/2
+            const float K2 = 0.211324865; // (3-sqrt(3))/6
+            
+            vec2 i = floor(p + (p.x + p.y) * K1);
+            vec2 a = p - i + (i.x + i.y) * K2;
+            vec2 o = (a.x > a.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+            vec2 b = a - o + K2;
+            vec2 c = a - 1.0 + 2.0 * K2;
+            
+            vec3 h = max(0.5 - vec3(dot(a, a), dot(b, b), dot(c, c)), 0.0);
+            vec3 n = h * h * h * h * vec3(dot(a, hash(i + 0.0)), 
+                                          dot(b, hash(i + o)),
+                                          dot(c, hash(i + 1.0)));
+            
+            return dot(n, vec3(70.0));
+        }
+        
+        float fbm(vec2 p, int octaves, float persistence, float lacunarity) {
+            float total = 0.0;
+            float frequency = 1.0;
+            float amplitude = 1.0;
+            float maxValue = 0.0;
+            
+            for (int i = 0; i < 10; i++) {
+                if (i >= octaves) break;
+                
+                total += noise(p * frequency) * amplitude;
+                maxValue += amplitude;
+                amplitude *= persistence;
+                frequency *= lacunarity;
+            }
+            
+            return total / maxValue;
+        }
+        
+        // Value noise for more angular patterns
+        float valueNoise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            
+            // Cubic interpolation
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            
+            float a = hash(i + vec2(0.0, 0.0)).x;
+            float b = hash(i + vec2(1.0, 0.0)).x;
+            float c = hash(i + vec2(0.0, 1.0)).x;
+            float d = hash(i + vec2(1.0, 1.0)).x;
+            
+            float result = mix(
+                mix(a, b, u.x),
+                mix(c, d, u.x),
+                u.y
+            );
+            
+            return result * 0.5 + 0.5;
+        }
+        
+        // The essence of stone (rocks)
+        vec3 stones(vec2 uv, float harmony, float asymmetry) {
+            vec3 color = vec3(0.0);
+            
+            // Parameters influenced by harmony and asymmetry
+            float size = mix(0.03, 0.12, harmony);
+            float irregularity = mix(0.5, 2.0, asymmetry);
+            
+            // Create several abstract stones
+            for (int i = 0; i < 5; i++) {
+                // Stone position with asymmetry
+                float fi = float(i) / 4.0;
+                vec2 center = vec2(
+                    mix(0.3, 0.7, hash(vec2(fi * 97.34, 23.12)).x * 0.5 + 0.5) + asymmetry * 0.2 * sin(fi * PI * 2.0),
+                    mix(0.3, 0.7, hash(vec2(fi * 47.63, 59.27)).x * 0.5 + 0.5) + asymmetry * 0.2 * cos(fi * PI * 2.0)
+                );
+                
+                // Calculate distance with some noise for irregular shape
+                vec2 toCenter = uv - center;
+                float basicDist = length(toCenter);
+                
+                // Add noise to the shape based on irregularity
+                float noiseValue = noise(toCenter * 15.0 + float(i) * 3.45) * irregularity * 0.1;
+                float distance = basicDist - size - noiseValue;
+                
+                // Stone appearance
+                if (distance < 0.0) {
+                    float edgeFactor = smoothstep(-0.02, 0.0, distance);
+                    vec3 stoneColor = mix(
+                        vec3(0.1 + 0.1 * sin(fi * 5.0), 0.1, 0.1 + 0.05 * cos(fi * 7.0)),
+                        vec3(0.15 + 0.05 * sin(fi * 8.0), 0.15, 0.15 + 0.03 * cos(fi * 9.0)),
+                        fbm(toCenter * 20.0, 3, 0.5, 2.0)
+                    );
+                    
+                    color = mix(stoneColor, color, edgeFactor);
+                }
+            }
+            
+            return color;
+        }
+        
+        // The essence of sand (ripples and patterns)
+        vec3 sandPatterns(vec2 uv, float simplicity, float emptiness, float transience, float time) {
+            // Parameters influenced by controls
+            int octaves = int(mix(1.0, 5.0, 1.0 - simplicity));
+            float persistence = mix(0.4, 0.8, simplicity);
+            float scale = mix(3.0, 10.0, 1.0 - emptiness);
+            float timeInfluence = mix(0.0, 0.3, transience);
+            
+            // Basic sand color
+            vec3 sandColor = vec3(0.85, 0.82, 0.75);
+            
+            // Create ripple patterns
+            vec2 adjustedUV = uv * scale;
+            adjustedUV.x += sin(time * 0.1 * timeInfluence) * 0.2;
+            
+            // Combine different pattern types based on simplicity
+            float rippleWeight = simplicity;
+            float noiseWeight = 1.0 - simplicity;
+            
+            // Ripple patterns (more structured)
+            float ripples = 0.0;
+            for (int i = 1; i <= 3; i++) {
+                float fi = float(i);
+                float frequency = fi * 5.0;
+                float amplitude = 1.0 / fi;
+                
+                // Create concentric patterns with some distortion
+                vec2 center = vec2(
+                    0.5 + 0.3 * sin(time * 0.05 * timeInfluence * fi),
+                    0.5 + 0.3 * cos(time * 0.03 * timeInfluence * fi)
+                );
+                
+                float dist = length(uv - center);
+                ripples += amplitude * sin(dist * frequency * PI * 2.0);
+            }
+            ripples = ripples * 0.5 + 0.5;
+            
+            // Noise patterns (more organic)
+            float noisePattern = fbm(adjustedUV, octaves, persistence, 2.0);
+            
+            // Combine patterns
+            float finalPattern = mix(noisePattern, ripples, rippleWeight);
+            
+            // Apply the pattern to the sand color
+            vec3 patternColor = mix(
+                sandColor * 0.7, 
+                sandColor,
+                finalPattern
+            );
+            
+            // Add a subtle gradient based on emptiness
+            patternColor = mix(
+                patternColor,
+                vec3(0.9, 0.88, 0.85),
+                (1.0 - uv.y) * emptiness * 0.3
+            );
+            
+            return patternColor;
+        }
+        
+        // Abstract elements that represent the philosophical concepts
+        vec3 philosophicalElements(vec2 uv, float harmony, float emptiness, float time) {
+            vec3 color = vec3(0.0);
+            
+            // Harmony represented by flowing curves
+            float harmonyPattern = sin(uv.x * 20.0 + sin(uv.y * 15.0)) * sin(uv.y * 20.0 + sin(uv.x * 15.0));
+            harmonyPattern = harmonyPattern * 0.5 + 0.5;
+            
+            // Emptiness represented by gradient voids
+            float emptyPattern = smoothstep(0.0, 1.0, length(uv - vec2(0.7, 0.3)) / (emptiness + 0.2));
+            
+            // Time element represents impermanence
+            float timePattern = sin(length(uv - vec2(0.5)) * 10.0 - time * 0.2) * 0.5 + 0.5;
+            
+            // Combine the philosophical elements subtly
+            color += vec3(0.02, 0.02, 0.03) * harmonyPattern * harmony;
+            color += vec3(0.03, 0.02, 0.01) * emptyPattern * emptiness;
+            color += vec3(0.01, 0.01, 0.02) * timePattern * 0.1;
+            
+            return color;
+        }
+        
+        void main() {
+            vec2 uv = v_uv;
+            float time = u_time;
+            
+            // Get parameters from UI
+            float harmony = u_harmony;
+            float emptiness = u_emptiness;
+            float asymmetry = u_asymmetry;
+            float simplicity = u_simplicity;
+            float transience = u_transience;
+            
+            // Adjust UV aspect ratio
+            uv.x *= u_resolution.x / u_resolution.y;
+            
+            // Base background color (sand)
+            vec3 finalColor = sandPatterns(uv, simplicity, emptiness, transience, time);
+            
+            // Add stones
+            vec3 stonesLayer = stones(uv, harmony, asymmetry);
+            finalColor = mix(finalColor, stonesLayer, stonesLayer.r > 0.01 ? 1.0 : 0.0);
+            
+            // Add philosophical elements
+            finalColor += philosophicalElements(uv, harmony, emptiness, time);
+            
+            // Lighting and atmosphere
+            float vignette = 1.0 - length(v_uv - 0.5) * 0.5;
+            finalColor *= vignette;
+            
+            // Apply a subtle color tone based on harmony
+            finalColor = mix(
+                finalColor,
+                finalColor * vec3(1.0, 0.98, 0.95),
+                harmony * 0.2
+            );
+            
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    `;
+    
+    // Shader compilation
+    function compileShader(gl, source, type) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+        }
+        
+        return shader;
+    }
+    
+    // Program creation
+    function createProgram(gl, vsSource, fsSource) {
+        const vertexShader = compileShader(gl, vsSource, gl.VERTEX_SHADER);
+        if (!vertexShader) return null;
+        
+        const fragmentShader = compileShader(gl, fsSource, gl.FRAGMENT_SHADER);
+        if (!fragmentShader) {
+            gl.deleteShader(vertexShader);
+            return null;
+        }
+        
+        const program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            console.error('Program link error:', gl.getProgramInfoLog(program));
+            gl.deleteShader(vertexShader);
+            gl.deleteShader(fragmentShader);
+            gl.deleteProgram(program);
+            return null;
+        }
+        
+        return program;
+    }
+    
+    // Create program
+    const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+    if (!program) {
+        console.error('Failed to create shader program');
+        return;
+    }
+    
+    gl.useProgram(program);
+    
+    // Set up quad geometry
+    const positions = [
+        -1.0, -1.0,
+        1.0, -1.0,
+        -1.0, 1.0,
+        1.0, 1.0
+    ];
+    
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    
+    const positionLocation = gl.getAttribLocation(program, 'a_position');
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    
+    // Get uniform locations
+    const uniforms = {
+        time: gl.getUniformLocation(program, 'u_time'),
+        resolution: gl.getUniformLocation(program, 'u_resolution'),
+        mouse: gl.getUniformLocation(program, 'u_mouse'),
+        harmony: gl.getUniformLocation(program, 'u_harmony'),
+        emptiness: gl.getUniformLocation(program, 'u_emptiness'),
+        asymmetry: gl.getUniformLocation(program, 'u_asymmetry'),
+        simplicity: gl.getUniformLocation(program, 'u_simplicity'),
+        transience: gl.getUniformLocation(program, 'u_transience')
+    };
+    
+    // Track mouse
+    let mouseX = 0.5, mouseY = 0.5;
+    
+    canvas.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX / canvas.width;
+        mouseY = 1.0 - e.clientY / canvas.height;
+    });
+    
+    // Animation loop
+    function render(time) {
+        time *= 0.001; // Convert to seconds
+        
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        
+        // Set uniforms
+        gl.uniform1f(uniforms.time, time);
+        gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
+        gl.uniform2f(uniforms.mouse, mouseX, mouseY);
+        gl.uniform1f(uniforms.harmony, parseFloat(controls.harmony.value));
+        gl.uniform1f(uniforms.emptiness, parseFloat(controls.emptiness.value));
+        gl.uniform1f(uniforms.asymmetry, parseFloat(controls.asymmetry.value));
+        gl.uniform1f(uniforms.simplicity, parseFloat(controls.simplicity.value));
+        gl.uniform1f(uniforms.transience, parseFloat(controls.transience.value));
+        
+        // Draw
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        
+        requestAnimationFrame(render);
+    }
+    
+    requestAnimationFrame(render);
+})();
+    </script>
+</body>
+</html>
