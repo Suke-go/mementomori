@@ -44,6 +44,7 @@ public class VisualEffectsController : MonoBehaviour
     private bool initialized = false;
     private Coroutine fadeCoroutine;
     
+    
     // Unity ライフサイクル
     void Awake()
     {
@@ -726,6 +727,111 @@ public class VisualEffectsController : MonoBehaviour
         
         fadeCoroutine = StartCoroutine(FadeOutAllCoroutine(duration));
     }
+    
+    // VisualEffectsController.csに追加
+
+/// <summary>
+/// 画面を指定の色でフラッシュ効果
+/// </summary>
+public void FlashScreen(Color color, float duration)
+{
+    StartCoroutine(FlashScreenCoroutine(color, duration));
+}
+
+private IEnumerator FlashScreenCoroutine(Color color, float duration)
+{
+    if (whiteOverlay != null && whiteOverlayMaterial != null)
+    {
+        // 元の色を保存
+        Color originalColor = whiteOverlayMaterial.color;
+        
+        // フラッシュ色を設定
+        whiteOverlayMaterial.color = new Color(color.r, color.g, color.b, 1f);
+        
+        // フェードアウト
+        float startTime = Time.time;
+        while (Time.time < startTime + duration)
+        {
+            float progress = (Time.time - startTime) / duration;
+            float alpha = Mathf.Lerp(1f, 0f, progress);
+            whiteOverlayMaterial.color = new Color(color.r, color.g, color.b, alpha);
+            yield return null;
+        }
+        
+        // 元の状態に戻す
+        whiteOverlayMaterial.color = originalColor;
+    }
+}
+
+/// <summary>
+/// 画面を黒にフェード
+/// </summary>
+public void FadeToBlack(float duration)
+{
+    StartCoroutine(FadeToColorCoroutine(Color.black, duration));
+}
+
+/// <summary>
+/// 黒から白へフェード
+/// </summary>
+public void FadeFromBlackToWhite(float duration)
+{
+    StartCoroutine(FadeFromBlackToWhiteCoroutine(duration));
+}
+
+private IEnumerator FadeToColorCoroutine(Color targetColor, float duration)
+{
+    if (blackOverlay != null && blackOverlayMaterial != null)
+    {
+        // 現在の色を取得
+        Color startColor = blackOverlayMaterial.color;
+        
+        // フェード
+        float startTime = Time.time;
+        while (Time.time < startTime + duration)
+        {
+            float progress = (Time.time - startTime) / duration;
+            float alpha = Mathf.Lerp(startColor.a, 1f, progress);
+            blackOverlayMaterial.color = new Color(targetColor.r, targetColor.g, targetColor.b, alpha);
+            yield return null;
+        }
+        
+        // 最終的な色に設定
+        blackOverlayMaterial.color = new Color(targetColor.r, targetColor.g, targetColor.b, 1f);
+    }
+}
+
+private IEnumerator FadeFromBlackToWhiteCoroutine(float duration)
+{
+    if (blackOverlay != null && blackOverlayMaterial != null && whiteOverlay != null && whiteOverlayMaterial != null)
+    {
+        // 黒オーバーレイが完全に不透明であることを確認
+        blackOverlayMaterial.color = new Color(0, 0, 0, 1f);
+        // 白オーバーレイは透明に
+        whiteOverlayMaterial.color = new Color(1f, 1f, 1f, 0f);
+        
+        // 徐々に黒を透明に、白を不透明に
+        float startTime = Time.time;
+        while (Time.time < startTime + duration)
+        {
+            float progress = (Time.time - startTime) / duration;
+            
+            // 黒を徐々に透明に
+            float blackAlpha = Mathf.Lerp(1f, 0f, progress);
+            blackOverlayMaterial.color = new Color(0, 0, 0, blackAlpha);
+            
+            // 途中から白が見え始める
+            if (progress > 0.5f)
+            {
+                float whiteProgress = (progress - 0.5f) * 2f; // 0.5〜1.0を0〜1にスケール
+                float whiteAlpha = Mathf.Lerp(0f, 0.7f, whiteProgress); // 完全に不透明にはしない
+                whiteOverlayMaterial.color = new Color(1f, 1f, 1f, whiteAlpha);
+            }
+            
+            yield return null;
+        }
+    }
+}
     
     /// <summary>
     /// すべてのエフェクトをフェードアウトするコルーチン
